@@ -1,0 +1,13 @@
+{
+  "name": "tmg-pos-api",
+  "version": "1.0.0",
+  "description": "Backend API for TMG Bulk POS Register",
+  "main": "index.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "isomorphic-fetch": "^3.0.0"
+  }
+}

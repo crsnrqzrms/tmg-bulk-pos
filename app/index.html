@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TMG POS - Bulk Order Register</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Thermal Receipt Print Configuration */
+    @page {
+      margin: 0;
+      size: auto;
+    }
+
+    #printableReceipt {
+      display: none;
+    }
+
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #printableReceipt, #printableReceipt * {
+        visibility: visible !important;
+      }
+      #printableReceipt {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 80mm;
+        margin: 0;
+        padding: 5mm 4mm;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        color: #000000;
+        background: #ffffff;
+      }
+      .rcpt-header {
+        text-align: center;
+        border-bottom: 1px dashed #000;
+        padding-bottom: 6px;
+        margin-bottom: 6px;
+      }
+      .rcpt-brand {
+        font-size: 16px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .rcpt-shop {
+        font-size: 11px;
+        margin-top: 2px;
+      }
+      .rcpt-divider {
+        border-top: 1px dashed #000;
+        margin: 6px 0;
+      }
+      .rcpt-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 2px 0;
+      }
+      .rcpt-item-name {
+        font-weight: 700;
+      }
+      .rcpt-item-sub {
+        font-size: 10px;
+        padding-left: 6px;
+      }
+      .rcpt-totals {
+        border-top: 1px dashed #000;
+        padding-top: 4px;
+        margin-top: 6px;
+      }
+      .rcpt-grand-total {
+        font-size: 13px;
+        font-weight: 800;
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid #000;
+        border-bottom: 1px solid #000;
+        padding: 4px 0;
+        margin: 6px 0;
+      }
+      .rcpt-footer {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 10px;
+        border-top: 1px dashed #000;
+        padding-top: 6px;
+      }
+    }
+
+    /* Light Theme Base */
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+      z-index: 10;
+    }
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-title h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #f8fafc;
+    }
+    .brand-title h2 span { color: #38bdf8; }
+    .user-tag {
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px 10px;
+      border-radius: 999px;
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-weight: 500;
+    }
+    .btn-void-toggle {
+      background: rgba(239, 68, 68, 0.12);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      transition: all 0.2s ease;
+    }
+    .btn-void-toggle:hover {
+      background: rgba(239, 68, 68, 0.22);
+      color: #fca5a5;
+      border-color: #ef4444;
+    }
+
+    .top-controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .top-controls label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .top-controls select {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #334155;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .top-controls select:focus { border-color: #38bdf8; }
+    .top-controls select:disabled {
+      background: #0f172a;
+      color: #64748b;
+      border-color: #1e293b;
+      cursor: not-allowed;
+    }
+
+    /* IT Lock Button */
+    .btn-it-lock {
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+    .btn-it-lock:hover {
+      background: #334155;
+      color: #ffffff;
+      border-color: #475569;
+    }
+    .btn-it-lock.locked {
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    /* Layout */
+    .pos-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      background-color: #f1f5f9;
+    }
+
+    /* Left Panel: Ticket */
+    .ticket-panel {
+      flex: 1.05;
+      display: flex;
+      flex-direction: column;
+      background-color: #ffffff;
+      min-width: 430px;
+      max-width: 490px;
+      border-right: 1px solid #e2e8f0;
+      box-shadow: 4px 0 20px rgba(15, 23, 42, 0.03);
+    }
+    .ticket-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fafafa;
+    }
+    .ticket-header h3 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #334155;
+    }
+    .btn-clear {
+      background: none;
+      border: none;
+      color: #ef4444;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .btn-clear:hover { text-decoration: underline; }
+    .ticket-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #f8fafc;
+    }
+    .ticket-empty {
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 50px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.6;
+    }
+
+    /* Ticket Card */
+    .cart-row {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+      transition: all 0.15s ease;
+    }
+    .cart-row:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
+    }
+    .cart-row-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cart-info {
+      flex: 1;
+      padding-right: 8px;
+    }
+    .cart-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .cart-sub {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+      font-weight: 500;
+    }
+    .cart-qty-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f5f9;
+      padding: 2px;
+      border-radius: 6px;
+    }
+    .qty-btn {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid #e2e8f0;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qty-btn:hover {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+    .qty-num {
+      font-size: 13px;
+      font-weight: 700;
+      width: 22px;
+      text-align: center;
+      color: #0f172a;
+    }
+    .cart-amount {
+      font-size: 14px;
+      font-weight: 700;
+      color: #059669;
+      width: 85px;
+      text-align: right;
+    }
+
+    /* Line Discount Controls */
+    .line-discount-ctrl {
+      background: #f8fafc;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #edf2f7;
+    }
+    .line-discount-ctrl label {
+      font-size: 10px;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .disc-input-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .disc-input-box input {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+      padding: 4px 8px;
+      border-radius: 4px;
+      width: 68px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: right;
+      outline: none;
+    }
+    .disc-input-box input:focus { border-color: #2563eb; }
+    .disc-type-btn {
+      background: #e2e8f0;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      min-width: 28px;
+    }
+    .disc-type-btn.active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+
+    /* Ticket Footer */
+    .ticket-footer {
+      border-top: 1px solid #e2e8f0;
+      background: #ffffff;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 48vh;
+      overflow-y: auto;
+    }
+
+    .form-field-label {
+      font-size: 10px;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .styled-input, .styled-select {
+      background: #f8fafc;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      width: 100%;
+    }
+    .styled-input:focus, .styled-select:focus {
+      border-color: #2563eb;
+      background: #ffffff;
+    }
+
+    .form-inline-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* Threshold Alert Box */
+    .threshold-alert {
+      display: none;
+      background: #fffbeb;
+      border: 1px solid #f59e0b;
+      color: #b45309;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .calc-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 500;
+      color: #64748b;
+    }
+    .calc-row.final {
+      font-size: 17px;
+      font-weight: 800;
+      color: #0f172a;
+      border-top: 1px dashed #cbd5e1;
+      padding-top: 8px;
+      margin-top: 2px;
+    }
+    .calc-row.final span:last-child { color: #059669; }
+
+    .btn-checkout {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      border: none;
+      padding: 13px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      margin-top: 4px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+    .btn-checkout:hover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+    }
+    .btn-checkout:disabled {
+      background: #cbd5e1;
+      box-shadow: none;
+      cursor: not-allowed;
+      color: #94a3b8;
+    }
+    #statusMsg {
+      font-size: 12px;
+      text-align: center;
+      margin-top: 2px;
+      font-weight: 600;
+    }
+    .rule-note {
+      font-size: 11px;
+      color: #d97706;
+      font-weight: 500;
+    }
+
+    /* Catalog Panel */
+    .catalog-panel {
+      flex: 1.6;
+      display: flex;
+      flex-direction: column;
+      background-color: #f8fafc;
+    }
+    .filter-bar {
+      padding: 16px 24px;
+      background-color: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .search-input {
+      width: 100%;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      color: #0f172a;
+      padding: 11px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .search-input:focus {
+      background: #ffffff;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .category-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-height: 130px;
+      overflow-y: auto;
+    }
+    .chip {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .chip:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .chip.active {
+      background: #0f172a;
+      color: #f8fafc;
+      border-color: #0f172a;
+    }
+
+    .item-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 16px;
+      align-content: start;
+    }
+    .item-btn {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 120px;
+      text-align: left;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+      transition: all 0.15s ease;
+    }
+    .item-btn:hover {
+      border-color: #93c5fd;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.08);
+    }
+    .item-code-tag {
+      font-size: 10px;
+      color: #2563eb;
+      background: #eff6ff;
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .item-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.35;
+    }
+    .item-price {
+      font-size: 15px;
+      font-weight: 800;
+      color: #059669;
+      margin-top: 10px;
+    }
+
+    /* Modals */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-box {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      width: 440px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+    }
+    .modal-input {
+      width: 100%;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .btn-modal-cancel {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-modal-confirm {
+      background: #dc2626;
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Success Card */
+    .success-card {
+      background: #ffffff;
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      width: 470px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+      text-align: center;
+    }
+    .success-icon {
+      width: 48px;
+      height: 48px;
+      background: #dcfce7;
+      color: #16a34a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin: 0 auto 12px auto;
+    }
+    .order-id-highlight {
+      background: #f8fafc;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 14px 0;
+    }
+    .order-id-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .order-id-val {
+      font-size: 22px;
+      font-weight: 800;
+      color: #2563eb;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .success-meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #475569;
+      margin-bottom: 5px;
+    }
+    .success-meta-row strong { color: #0f172a; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <div class="top-bar">
+    <div class="brand-title">
+      <h2>TMG <span>POS Register</span></h2>
+      <span class="user-tag" id="userEmailTag">Loading user...</span>
+      <button type="button" class="btn-void-toggle" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; border-color: rgba(56, 189, 248, 0.35);" onclick="openZReadModal()">📊 Shift Summary</button>
+      <button type="button" class="btn-void-toggle" onclick="openVoidModal()">✕ Void Order</button>
+    </div>
+
+    <div class="top-controls">
+      <div class="control-item">
+        <label>Brand</label>
+        <select id="headerBrand" onchange="onBrandChange()">
+          <option value="">-- Select Brand --</option>
+        </select>
+      </div>
+
+      <div class="control-item">
+        <label>Sub Brand</label>
+        <select id="headerSubBrand" onchange="onSubBrandChange()" disabled>
+          <option value="">-- All Sub Brands --</option>
+        </select>
+      </div>
+
+      <div class="control-item">
+        <label>Shop</label>
+        <select id="headerShop" onchange="onShopChange()" disabled>
+          <option value="">-- Select Brand First --</option>
+        </select>
+      </div>
+
+      <!-- IT Shop Lock/Unlock Button -->
+      <button type="button" id="itLockBtn" class="btn-it-lock" onclick="handleItLockClick()">
+        <span id="itLockIcon">🔒</span> <span id="itLockText">Store Locked</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main POS Interface -->
+  <div class="pos-container">
+
+    <!-- LEFT: Ticket Summary -->
+    <div class="ticket-panel">
+      <div class="ticket-header">
+        <h3>Order Ticket</h3>
+        <button type="button" class="btn-clear" onclick="clearCart()">Clear All</button>
+      </div>
+
+      <div class="ticket-items" id="ticketItems">
+        <div class="ticket-empty">No items punched yet.<br>Click items on the right to add.</div>
+      </div>
+
+      <div class="ticket-footer">
+        
+        <!-- Threshold Warning Indicator -->
+        <div id="thresholdWarning" class="threshold-alert">
+          ⚠️ <strong>Takeout Notice:</strong> Current order total is below this branch's bulk threshold (<span id="shopThresholdVal">₱0.00</span>).
+        </div>
+
+        <!-- Invoicing & Payment Info -->
+        <div class="form-inline-group">
+          <div>
+            <label class="form-field-label">SI / OR Number *</label>
+            <input type="text" id="orNumberInput" class="styled-input" placeholder="e.g. SI-10042" required>
+          </div>
+          <div>
+            <label class="form-field-label">Payment Method *</label>
+            <select id="paymentMethodSelect" class="styled-select" onchange="onPaymentMethodChange()">
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Payment Reference (Dynamic) -->
+        <div id="paymentRefWrapper" style="display: none;">
+          <label class="form-field-label">Payment Approval / Trace / Reference # *</label>
+          <input type="text" id="paymentRefInput" class="styled-input" placeholder="e.g. GCash Ref # / Card Trace #">
+        </div>
+
+        <!-- Corporate Tax / Client Identity (Optional) -->
+        <div class="form-inline-group">
+          <div>
+            <label class="form-field-label">Customer / Company Name</label>
+            <input type="text" id="customerNameInput" class="styled-input" placeholder="Optional for B2B/OR">
+          </div>
+          <div>
+            <label class="form-field-label">Customer TIN</label>
+            <input type="text" id="customerTinInput" class="styled-input" placeholder="000-000-000-000">
+          </div>
+        </div>
+
+        <!-- Order Discount Mapping Selector -->
+        <div>
+          <label class="form-field-label">Order Discount Type</label>
+          <select id="discountSchemeSelect" class="styled-select" onchange="onDiscountSchemeChange()">
+            <option value="NONE" data-rule="NONE">No Order Discount</option>
+            <option value="OPEN" data-rule="CUSTOM_OPEN">Open Custom Discount (₱ / %)</option>
+          </select>
+        </div>
+
+        <!-- Mode A: Open Discount Controls -->
+        <div id="openDiscountBox" style="display: none;">
+          <label class="form-field-label">Custom Discount Amount</label>
+          <div class="disc-input-box">
+            <button type="button" id="orderDiscTypeBtn" class="disc-type-btn" onclick="toggleOrderDiscType()">₱</button>
+            <input type="number" id="orderDiscountInput" class="styled-input" style="flex:1;" placeholder="0.00" step="any" min="0" oninput="onOrderDiscountChange()">
+          </div>
+        </div>
+
+        <!-- Mode B: Statutory Headcount Proportion Controls (Senior/PWD) / Fixed Percentage with ID -->
+        <div id="statutoryDiscountBox" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px;">
+          <div id="headcountRow" class="form-inline-group">
+            <div>
+              <label class="form-field-label">Total Pax / Qty *</label>
+              <input type="number" id="scTotalPaxInput" class="styled-input" placeholder="e.g. 50" min="1" value="1" oninput="calculateTotals(); checkShopThreshold();">
+            </div>
+            <div>
+              <label class="form-field-label">No. of Senior/PWDs *</label>
+              <input type="number" id="scCountInput" class="styled-input" placeholder="e.g. 2" min="1" value="1" oninput="calculateTotals(); checkShopThreshold();">
+            </div>
+          </div>
+          <div id="discountIdWrapper" style="margin-top: 6px;">
+            <label class="form-field-label">ID / Card Number *</label>
+            <input type="text" id="discountIdInput" class="styled-input" placeholder="Enter Senior / PWD / Loyalty ID...">
+          </div>
+        </div>
+
+        <div class="rule-note" id="conjunctionWarning"></div>
+
+        <div>
+          <label class="form-field-label">Order Notes / Kitchen Instructions</label>
+          <input type="text" id="orderNotesInput" class="styled-input" placeholder="Special prep notes, dispatch requests...">
+        </div>
+
+        <!-- Financial Summary -->
+        <div class="calc-row">
+          <span>Gross Subtotal</span>
+          <span id="subtotalDisplay">₱0.00</span>
+        </div>
+        <div class="calc-row">
+          <span>Total Discounts</span>
+          <span id="discountDisplay">-₱0.00</span>
+        </div>
+        <div class="calc-row" style="font-size: 11px; color: #64748b; padding-top: 2px;">
+          <span>VATable Sales</span>
+          <span id="vatableDisplay">₱0.00</span>
+        </div>
+        <div class="calc-row" style="font-size: 11px; color: #64748b;">
+          <span>VAT-Exempt Sales (SC/PWD)</span>
+          <span id="vatExemptDisplay">₱0.00</span>
+        </div>
+        <div class="calc-row" style="font-size: 11px; color: #64748b;">
+          <span>12% VAT</span>
+          <span id="vatDisplay">₱0.00</span>
+        </div>
+        <div class="calc-row final">
+          <span>Amount Due</span>
+          <span id="grossTotalDisplay">₱0.00</span>
+        </div>
+
+        <button type="button" id="submitBtn" class="btn-checkout" onclick="submitTicket()" disabled>Finalize & Save Order</button>
+        <div id="statusMsg"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Item Catalog & Grid -->
+    <div class="catalog-panel">
+      <div class="filter-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search item description or item code..." oninput="filterItems()">
+        <div class="category-chips" id="categoryChips">
+          <div class="chip active" onclick="selectCategory('ALL')">All Categories</div>
+        </div>
+      </div>
+
+      <div class="item-grid" id="itemGrid">
+        <div style="color: #94a3b8; grid-column: 1/-1; text-align: center; margin-top: 50px; font-weight: 500;">Select a Brand above to load catalog items.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Success Confirmation Modal -->
+  <div id="successModal" class="modal-backdrop">
+    <div class="success-card">
+      <div class="success-icon">✓</div>
+      <h3 style="margin: 0; font-size: 18px; color: #0f172a;">Bulk Order Recorded</h3>
+      <p style="font-size: 12px; color: #64748b; margin: 4px 0 14px 0;">Record submitted to Finance. Keep this Order ID for reference:</p>
+      
+      <div class="order-id-highlight">
+        <div class="order-id-label">Assigned Order ID</div>
+        <div class="order-id-val" id="confirmedOrderId">POS-XXXXXXXX</div>
+      </div>
+
+      <div class="success-meta-row">
+        <span>Shop Branch:</span>
+        <strong id="confirmedShop">-</strong>
+      </div>
+      <div class="success-meta-row">
+        <span>SI / Ref #:</span>
+        <strong id="confirmedOr">-</strong>
+      </div>
+      <div class="success-meta-row">
+        <span>Payment Method:</span>
+        <strong id="confirmedPayment">-</strong>
+      </div>
+      <div class="success-meta-row">
+        <span>VATable Sales:</span>
+        <strong id="confirmedVatable">₱0.00</strong>
+      </div>
+      <div class="success-meta-row">
+        <span>VAT-Exempt Sales:</span>
+        <strong id="confirmedVatExempt">₱0.00</strong>
+      </div>
+      <div class="success-meta-row">
+        <span>12% VAT:</span>
+        <strong id="confirmedVat">₱0.00</strong>
+      </div>
+      <div class="success-meta-row" style="border-top: 1px dashed #cbd5e1; padding-top: 6px; margin-top: 4px;">
+        <span style="font-size: 13px; font-weight: 700;">Total Amount Due:</span>
+        <strong id="confirmedTotal" style="color: #059669; font-size: 15px;">₱0.00</strong>
+      </div>
+
+      <!-- Dedicated Dual Print Options -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px;">
+        <button type="button" class="btn-checkout" style="background: #0f172a; box-shadow: none; padding: 11px;" onclick="printThermalSlip('AUDIT')">🖨️ Audit Slip</button>
+        <button type="button" class="btn-checkout" style="background: #0284c7; box-shadow: none; padding: 11px;" onclick="printThermalSlip('KITCHEN')">👨‍🍳 Kitchen Slip</button>
+      </div>
+
+      <button type="button" class="btn-checkout" style="width: 100%; margin-top: 8px; background: #2563eb;" onclick="closeSuccessModal()">Ready for Next Order</button>
+    </div>
+  </div>
+
+  <!-- Z-Read / Daily Shift Summary Modal -->
+  <div id="zReadModal" class="modal-backdrop">
+    <div class="modal-box" style="width: 480px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+        <h3 style="margin: 0; color: #0f172a; font-size: 15px; font-weight: 800; text-transform: uppercase;">Daily Shift Z-Read Summary</h3>
+        <button type="button" onclick="closeZReadModal()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #64748b;">✕</button>
+      </div>
+
+      <div id="zReadContent" style="flex: 1; overflow-y: auto; padding: 12px 0;">
+        <div style="text-align: center; color: #94a3b8; padding: 20px;">Fetching store transactions...</div>
+      </div>
+
+      <div class="modal-actions" style="border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 8px;">
+        <button type="button" class="btn-modal-cancel" onclick="closeZReadModal()">Close</button>
+        <button type="button" id="printZReadBtn" class="btn-checkout" style="padding: 8px 16px; margin: 0; background: #0f172a;" onclick="printZReadSlip()" disabled>🖨️ Print Z-Read</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Void Modal Popup -->
+  <div id="voidModal" class="modal-backdrop">
+    <div class="modal-box">
+      <h3 style="margin-top: 0; color: #dc2626; font-size: 16px; font-weight: 700; text-transform: uppercase;">Void Today's Order</h3>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 14px;">Transactions can <strong>only be voided on the day they were created</strong> and within the <strong>same shop</strong> currently selected.</p>
+      
+      <label class="form-field-label">Order ID or SI Number</label>
+      <input type="text" id="voidIdentifierInput" class="modal-input" placeholder="e.g. POS-1712345678 or SI-10042">
+
+      <label class="form-field-label">Reason for Void</label>
+      <textarea id="voidReasonInput" class="modal-input" rows="2" placeholder="e.g. Duplicate entry, Wrong item punched"></textarea>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-modal-cancel" onclick="closeVoidModal()">Cancel</button>
+        <button type="button" id="confirmVoidBtn" class="btn-modal-confirm" onclick="processVoid()">Confirm Void</button>
+      </div>
+      <div id="voidStatusMsg" style="font-size: 12px; text-align: center; margin-top: 10px; font-weight: 700;"></div>
+    </div>
+  </div>
+
+  <!-- Thermal Receipt Render Target -->
+  <div id="printableReceipt"></div>
+
+  <script>
+    // --- IT MASTER PASSWORD FOR STORE LOCK ---
+    const IT_MASTER_PIN = "TMG2026";
+    let isStoreLocked = true;
+
+    let fullCatalog = [];
+    let shopMap = {};
+    let thresholdMap = {};
+    let paymentMethods = [];
+    let discountList = [];
+    let cart = {};
+
+    let orderDiscType = 'AMOUNT';
+    let activeCategory = 'ALL';
+    let previousBrand = '';
+    let lastFinalizedOrder = null;
+    let currentShiftSummary = null;
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Decoupled standard HTTP fetch replacing google.script.run
+      fetch('/api/getPosData')
+        .then(response => {
+          if (!response.ok) throw new Error("HTTP error " + response.status + ": Could not initialize POS catalog.");
+          return response.json();
+        })
+        .then(data => {
+          fullCatalog = data.catalog || [];
+          shopMap = data.shopMap || {};
+          thresholdMap = data.thresholdMap || {};
+          paymentMethods = data.paymentMethods || [];
+          discountList = data.discountList || [];
+          document.getElementById("userEmailTag").textContent = data.userEmail || "Store User";
+
+          // 1. Populate Brand Dropdown
+          let brandSelect = document.getElementById("headerBrand");
+          brandSelect.innerHTML = '<option value="">-- Select Brand --</option>';
+          (data.brands || []).forEach(b => {
+            let opt = document.createElement("option");
+            opt.value = b;
+            opt.textContent = b;
+            brandSelect.appendChild(opt);
+          });
+
+          // 2. Populate Payment Methods Dropdown
+          let paySelect = document.getElementById("paymentMethodSelect");
+          paySelect.innerHTML = "";
+          paymentMethods.forEach(pm => {
+            let opt = document.createElement("option");
+            opt.value = pm.name;
+            opt.textContent = pm.name;
+            opt.dataset.requireRef = pm.requireRef;
+            paySelect.appendChild(opt);
+          });
+          onPaymentMethodChange();
+
+          // 3. Populate Discount Schemes Dropdown (with deduplication)
+          let discSelect = document.getElementById("discountSchemeSelect");
+          discSelect.innerHTML = '<option value="NONE" data-rule="NONE">No Order Discount</option><option value="OPEN" data-rule="CUSTOM_OPEN">Open Custom Discount (₱ / %)</option>';
+          discountList.forEach(ds => {
+            if (ds.rule === "CUSTOM_OPEN") return;
+
+            let opt = document.createElement("option");
+            opt.value = ds.name;
+            opt.textContent = ds.name + (ds.val > 0 ? " (" + ds.val + "%)" : "");
+            opt.dataset.rule = ds.rule;
+            opt.dataset.rate = ds.val;
+            opt.dataset.requireId = ds.requireId;
+            discSelect.appendChild(opt);
+          });
+
+          // 4. Restore IT-Locked Terminal from LocalStorage
+          var savedBrand = localStorage.getItem("tmg_pos_brand");
+          var savedShop = localStorage.getItem("tmg_pos_shop");
+
+          if (savedBrand && (data.brands || []).includes(savedBrand)) {
+            brandSelect.value = savedBrand;
+            onBrandChange(true);
+            if (savedShop && shopMap[savedBrand] && shopMap[savedBrand].includes(savedShop)) {
+              document.getElementById("headerShop").value = savedShop;
+            }
+            lockStoreControls(true);
+          } else {
+            lockStoreControls(false);
+          }
+
+          checkShopThreshold();
+        })
+        .catch(err => {
+          document.getElementById("userEmailTag").textContent = "Offline / Error";
+          alert("POS API Connection Error: " + err.message);
+        });
+    });
+
+    // --- IT STORE LOCK CONTROL LOGIC ---
+    function lockStoreControls(locked) {
+      isStoreLocked = locked;
+      let brandSelect = document.getElementById("headerBrand");
+      let shopSelect = document.getElementById("headerShop");
+      let lockBtn = document.getElementById("itLockBtn");
+      let lockIcon = document.getElementById("itLockIcon");
+      let lockText = document.getElementById("itLockText");
+
+      if (locked) {
+        brandSelect.disabled = true;
+        shopSelect.disabled = true;
+        lockBtn.classList.add("locked");
+        lockIcon.textContent = "🔒";
+        lockText.textContent = "Store Assigned";
+      } else {
+        brandSelect.disabled = false;
+        if (brandSelect.value) shopSelect.disabled = false;
+        lockBtn.classList.remove("locked");
+        lockIcon.textContent = "🔓";
+        lockText.textContent = "IT Mode (Unlocked)";
+      }
+    }
+
+    function handleItLockClick() {
+      if (isStoreLocked) {
+        let pin = prompt("Enter IT Master Password to unlock Store Selection:");
+        if (pin === null) return;
+        if (pin === IT_MASTER_PIN) {
+          lockStoreControls(false);
+          alert("IT Authorization Verified. You may now assign the Brand and Shop for this device.");
+        } else {
+          alert("Incorrect IT Password. Access denied.");
+        }
+      } else {
+        let brand = document.getElementById("headerBrand").value;
+        let shop = document.getElementById("headerShop").value;
+        if (!brand || !shop) {
+          alert("Please select both a Brand and Shop before locking this terminal.");
+          return;
+        }
+        localStorage.setItem("tmg_pos_brand", brand);
+        localStorage.setItem("tmg_pos_shop", shop);
+        lockStoreControls(true);
+        alert("Terminal locked to: " + shop + " (" + brand + "). Store staff cannot alter this setting without IT credentials.");
+      }
+    }
+
+    function onBrandChange(skipPrompt) {
+      let brandSelect = document.getElementById("headerBrand");
+      let newBrand = brandSelect.value;
+
+      if (!skipPrompt && Object.keys(cart).length > 0 && previousBrand && newBrand !== previousBrand) {
+        let confirmed = confirm("Switching brands will clear your current ticket. Proceed?");
+        if (!confirmed) {
+          brandSelect.value = previousBrand;
+          return;
+        }
+        clearCart();
+      }
+
+      previousBrand = newBrand;
+      if (newBrand) localStorage.setItem("tmg_pos_brand", newBrand);
+
+      let shopSelect = document.getElementById("headerShop");
+      let subBrandSelect = document.getElementById("headerSubBrand");
+
+      if (!newBrand) {
+        subBrandSelect.innerHTML = '<option value="">-- All Sub Brands --</option>';
+        subBrandSelect.disabled = true;
+      } else {
+        let brandItems = fullCatalog.filter(r => r.brand === newBrand);
+        let subBrands = [...new Set(brandItems.map(r => r.subBrand).filter(Boolean))].sort();
+        subBrandSelect.innerHTML = '<option value="ALL">All Sub Brands</option>';
+        subBrands.forEach(sb => {
+          let opt = document.createElement("option");
+          opt.value = sb;
+          opt.textContent = sb;
+          subBrandSelect.appendChild(opt);
+        });
+        subBrandSelect.disabled = false;
+      }
+
+      if (!newBrand || !shopMap[newBrand]) {
+        shopSelect.innerHTML = '<option value="">-- No Shops --</option>';
+        shopSelect.disabled = true;
+      } else {
+        shopSelect.innerHTML = '<option value="">-- Select Shop --</option>';
+        shopMap[newBrand].forEach(s => {
+          let opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = s;
+          shopSelect.appendChild(opt);
+        });
+        shopSelect.disabled = isStoreLocked;
+      }
+
+      buildCategoryChips(newBrand);
+      filterItems();
+      checkShopThreshold();
+    }
+
+    function onSubBrandChange() {
+      let brand = document.getElementById("headerBrand").value;
+      buildCategoryChips(brand);
+      filterItems();
+    }
+
+    function onShopChange() {
+      let shop = document.getElementById("headerShop").value;
+      if (shop) localStorage.setItem("tmg_pos_shop", shop);
+      checkShopThreshold();
+    }
+
+    function onPaymentMethodChange() {
+      let select = document.getElementById("paymentMethodSelect");
+      let selectedOpt = select.options[select.selectedIndex];
+      let wrapper = document.getElementById("paymentRefWrapper");
+      let input = document.getElementById("paymentRefInput");
+
+      let requireRef = selectedOpt && (selectedOpt.dataset.requireRef === "true" || selectedOpt.dataset.requireRef === true);
+      if (requireRef) {
+        wrapper.style.display = "block";
+        input.required = true;
+      } else {
+        wrapper.style.display = "none";
+        input.required = false;
+        input.value = "";
+      }
+    }
+
+    function onDiscountSchemeChange() {
+      let select = document.getElementById("discountSchemeSelect");
+      let opt = select.options[select.selectedIndex];
+      let rule = opt ? opt.dataset.rule : "NONE";
+      let requireId = opt && (opt.dataset.requireId === "true" || opt.dataset.requireId === true);
+
+      let openBox = document.getElementById("openDiscountBox");
+      let statBox = document.getElementById("statutoryDiscountBox");
+      let headcountRow = document.getElementById("headcountRow");
+      let discountIdWrapper = document.getElementById("discountIdWrapper");
+
+      if (rule !== "CUSTOM_OPEN") {
+        document.getElementById("orderDiscountInput").value = "";
+      }
+
+      if (rule === "CUSTOM_OPEN") {
+        openBox.style.display = "block";
+        statBox.style.display = "none";
+      } else if (rule === "STATUTORY_HEADCOUNT") {
+        openBox.style.display = "none";
+        statBox.style.display = "block";
+        headcountRow.style.display = "grid";
+        discountIdWrapper.style.display = "block";
+      } else if (rule === "FIXED_PERCENT") {
+        openBox.style.display = "none";
+        if (requireId) {
+          statBox.style.display = "block";
+          headcountRow.style.display = "none";
+          discountIdWrapper.style.display = "block";
+        } else {
+          statBox.style.display = "none";
+        }
+      } else {
+        openBox.style.display = "none";
+        statBox.style.display = "none";
+      }
+
+      calculateTotals();
+      checkShopThreshold();
+    }
+
+    function checkShopThreshold() {
+      let brand = document.getElementById("headerBrand").value.trim();
+      let shop = document.getElementById("headerShop").value.trim();
+      let key = (brand + "|" + shop).toUpperCase();
+      let threshold = thresholdMap[key] || 0;
+
+      let totals = calculateTotals();
+      let alertBox = document.getElementById("thresholdWarning");
+
+      if (threshold > 0 && totals.finalTotal > 0 && totals.finalTotal < threshold) {
+        alertBox.style.display = "block";
+        document.getElementById("shopThresholdVal").textContent = "₱" + threshold.toLocaleString('en-US', { minimumFractionDigits: 2 });
+      } else {
+        alertBox.style.display = "none";
+      }
+    }
+
+    function buildCategoryChips(brand) {
+      let container = document.getElementById("categoryChips");
+      container.innerHTML = '<div class="chip active" onclick="selectCategory(\'ALL\')">All Categories</div>';
+      activeCategory = 'ALL';
+
+      if (!brand) return;
+
+      let subBrandVal = document.getElementById("headerSubBrand").value;
+      let brandItems = fullCatalog.filter(r => {
+        let matchBrand = r.brand === brand;
+        let matchSub = (!subBrandVal || subBrandVal === 'ALL') || r.subBrand === subBrandVal;
+        return matchBrand && matchSub;
+      });
+
+      let categories = [...new Set(brandItems.map(r => r.mainCat).filter(Boolean))].sort();
+
+      categories.forEach(cat => {
+        let chip = document.createElement("div");
+        chip.className = "chip";
+        chip.textContent = cat;
+        chip.onclick = function() { selectCategory(cat); };
+        container.appendChild(chip);
+      });
+    }
+
+    function selectCategory(cat) {
+      activeCategory = cat;
+      document.querySelectorAll(".chip").forEach(c => {
+        c.classList.toggle("active", c.textContent === cat || (cat === 'ALL' && c.textContent === 'All Categories'));
+      });
+      filterItems();
+    }
+
+    function filterItems() {
+      let brand = document.getElementById("headerBrand").value;
+      let subBrandVal = document.getElementById("headerSubBrand").value;
+      let grid = document.getElementById("itemGrid");
+      grid.innerHTML = "";
+
+      if (!brand) {
+        grid.innerHTML = '<div style="color: #94a3b8; grid-column: 1/-1; text-align: center; margin-top: 50px; font-weight: 500;">Select a Brand above to load catalog items.</div>';
+        return;
+      }
+
+      let query = document.getElementById("searchInput").value.toLowerCase().trim();
+
+      let filtered = fullCatalog.filter(item => {
+        let matchBrand = item.brand === brand;
+        let matchSub = (!subBrandVal || subBrandVal === 'ALL') || item.subBrand === subBrandVal;
+        let matchCat = (activeCategory === 'ALL') || (item.mainCat === activeCategory);
+        let matchQuery = !query || item.itemDesc.toLowerCase().includes(query) || item.itemCode.toLowerCase().includes(query);
+        return matchBrand && matchSub && matchCat && matchQuery;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div style="color: #94a3b8; grid-column: 1/-1; text-align: center; margin-top: 50px; font-weight: 500;">No items match this filter.</div>';
+        return;
+      }
+
+      filtered.forEach(item => {
+        let card = document.createElement("div");
+        card.className = "item-btn";
+        card.onclick = function() { addToCart(item); };
+        card.innerHTML = `
+          <div>
+            <div class="item-code-tag">${item.itemCode}</div>
+            <div class="item-name">${item.itemDesc}</div>
+          </div>
+          <div class="item-price">₱${item.price.toFixed(2)}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function addToCart(item) {
+      let currentBrand = document.getElementById("headerBrand").value;
+      if (item.brand !== currentBrand) {
+        alert("Cannot add items from a different brand.");
+        return;
+      }
+
+      if (!cart[item.itemCode]) {
+        cart[item.itemCode] = { item: item, qty: 1, discType: 'AMOUNT', discVal: 0 };
+      } else {
+        cart[item.itemCode].qty += 1;
+      }
+      renderTicket();
+    }
+
+    function changeQty(itemCode, delta) {
+      if (!cart[itemCode]) return;
+      cart[itemCode].qty += delta;
+      if (cart[itemCode].qty <= 0) delete cart[itemCode];
+      renderTicket();
+    }
+
+    function clearCart() {
+      cart = {};
+      document.getElementById("orderDiscountInput").value = "";
+      renderTicket();
+    }
+
+    function toggleLineDiscType(itemCode) {
+      if (!cart[itemCode]) return;
+      cart[itemCode].discType = cart[itemCode].discType === 'AMOUNT' ? 'PERCENT' : 'AMOUNT';
+      renderTicket();
+    }
+
+    function onLineDiscountChange(itemCode, value) {
+      if (!cart[itemCode]) return;
+      let val = parseFloat(value) || 0;
+
+      if (val > 0) {
+        document.getElementById("discountSchemeSelect").value = "NONE";
+        onDiscountSchemeChange();
+      }
+
+      cart[itemCode].discVal = val;
+
+      let entry = cart[itemCode];
+      let lineGross = entry.item.price * entry.qty;
+      let lineDisc = computeLineDiscount(entry);
+      let netLine = Math.max(0, lineGross - lineDisc);
+
+      let rowEl = document.getElementById("cart-row-" + itemCode);
+      if (rowEl) {
+        let amountEl = rowEl.querySelector(".cart-amount");
+        if (amountEl) {
+          amountEl.textContent = "₱" + netLine.toFixed(2);
+        }
+      }
+
+      let hasLineDiscounts = Object.keys(cart).some(code => computeLineDiscount(cart[code]) > 0);
+      let discSelect = document.getElementById("discountSchemeSelect");
+      let warningTag = document.getElementById("conjunctionWarning");
+
+      if (hasLineDiscounts) {
+        discSelect.disabled = true;
+        discSelect.value = "NONE";
+        onDiscountSchemeChange();
+        warningTag.textContent = "ℹ️ Conjunction rule: Order-level discount locked while line discounts are active.";
+      } else {
+        discSelect.disabled = false;
+        warningTag.textContent = "";
+      }
+
+      calculateTotals();
+      checkShopThreshold();
+    }
+
+    function toggleOrderDiscType() {
+      orderDiscType = orderDiscType === 'AMOUNT' ? 'PERCENT' : 'AMOUNT';
+      let btn = document.getElementById("orderDiscTypeBtn");
+      btn.textContent = orderDiscType === 'PERCENT' ? '%' : '₱';
+      btn.classList.toggle("active", orderDiscType === 'PERCENT');
+      renderTicket();
+    }
+
+    function onOrderDiscountChange() {
+      let orderDisc = parseFloat(document.getElementById("orderDiscountInput").value) || 0;
+      if (orderDisc > 0) {
+        Object.keys(cart).forEach(code => { cart[code].discVal = 0; });
+      }
+      renderTicket();
+    }
+
+    function computeLineDiscount(entry) {
+      let gross = entry.item.price * entry.qty;
+      if (!entry.discVal || entry.discVal <= 0) return 0;
+      if (entry.discType === 'PERCENT') {
+        let pct = Math.min(100, Math.max(0, entry.discVal));
+        return (gross * pct) / 100;
+      } else {
+        return Math.min(gross, Math.max(0, entry.discVal));
+      }
+    }
+
+    function renderTicket() {
+      let container = document.getElementById("ticketItems");
+      let keys = Object.keys(cart);
+
+      if (keys.length === 0) {
+        container.innerHTML = '<div class="ticket-empty">No items punched yet.<br>Click items on the right to add.</div>';
+        document.getElementById("submitBtn").disabled = true;
+        document.getElementById("conjunctionWarning").textContent = "";
+        calculateTotals();
+        checkShopThreshold();
+        return;
+      }
+
+      container.innerHTML = "";
+      document.getElementById("submitBtn").disabled = false;
+
+      let hasLineDiscounts = false;
+
+      keys.forEach(code => {
+        let entry = cart[code];
+        let lineGross = entry.item.price * entry.qty;
+        let lineDisc = computeLineDiscount(entry);
+        let netLine = Math.max(0, lineGross - lineDisc);
+        if (lineDisc > 0) hasLineDiscounts = true;
+
+        let row = document.createElement("div");
+        row.className = "cart-row";
+        row.id = "cart-row-" + code;
+        row.innerHTML = `
+          <div class="cart-row-main">
+            <div class="cart-info">
+              <div class="cart-title">${entry.item.itemDesc}</div>
+              <div class="cart-sub">${entry.item.itemCode} • ₱${entry.item.price.toFixed(2)} ea</div>
+            </div>
+            <div class="cart-qty-ctrl">
+              <button type="button" class="qty-btn" onclick="changeQty('${code}', -1)">-</button>
+              <span class="qty-num">${entry.qty}</span>
+              <button type="button" class="qty-btn" onclick="changeQty('${code}', 1)">+</button>
+            </div>
+            <div class="cart-amount">₱${netLine.toFixed(2)}</div>
+          </div>
+
+          <div class="line-discount-ctrl">
+            <label>Item Discount</label>
+            <div class="disc-input-box">
+              <button type="button" class="disc-type-btn ${entry.discType === 'PERCENT' ? 'active' : ''}" onclick="toggleLineDiscType('${code}')">
+                ${entry.discType === 'PERCENT' ? '%' : '₱'}
+              </button>
+              <input type="number" step="any" min="0" placeholder="0" value="${entry.discVal || ''}" oninput="onLineDiscountChange('${code}', this.value)">
+            </div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      let discSelect = document.getElementById("discountSchemeSelect");
+      let warningTag = document.getElementById("conjunctionWarning");
+
+      if (hasLineDiscounts) {
+        discSelect.disabled = true;
+        discSelect.value = "NONE";
+        onDiscountSchemeChange();
+        warningTag.textContent = "ℹ️ Conjunction rule: Order-level discount locked while line discounts are active.";
+      } else {
+        discSelect.disabled = false;
+        warningTag.textContent = "";
+      }
+
+      calculateTotals();
+      checkShopThreshold();
+    }
+
+    function calculateTotals() {
+      let subtotal = 0;
+      let totalLineDiscount = 0;
+
+      Object.keys(cart).forEach(code => {
+        let entry = cart[code];
+        subtotal += entry.item.price * entry.qty;
+        totalLineDiscount += computeLineDiscount(entry);
+      });
+
+      let discSelect = document.getElementById("discountSchemeSelect");
+      let selectedOpt = discSelect.options[discSelect.selectedIndex];
+      let rule = selectedOpt ? selectedOpt.dataset.rule : "NONE";
+      let fixedRate = selectedOpt ? (parseFloat(selectedOpt.dataset.rate) || 0) : 0;
+
+      let orderDiscountAmount = 0;
+      let vatableSales = 0;
+      let vatExemptSales = 0;
+      let vatAmount = 0;
+      let finalTotal = 0;
+
+      if (totalLineDiscount > 0) {
+        let netCommercial = Math.max(0, subtotal - totalLineDiscount);
+        vatableSales = netCommercial / 1.12;
+        vatAmount = netCommercial - vatableSales;
+        vatExemptSales = 0;
+        finalTotal = netCommercial;
+        orderDiscountAmount = totalLineDiscount;
+
+      } else if (rule === "STATUTORY_HEADCOUNT") {
+        let totalPax = parseInt(document.getElementById("scTotalPaxInput").value) || 1;
+        let scCount = parseInt(document.getElementById("scCountInput").value) || 0;
+        if (scCount > totalPax) scCount = totalPax;
+
+        let scShareGross = (subtotal / totalPax) * scCount;
+        let regularShareGross = subtotal - scShareGross;
+
+        let regularVatable = regularShareGross / 1.12;
+        let regularVat = regularShareGross - regularVatable;
+
+        let scVatExemptBase = scShareGross / 1.12;
+        let scDiscount = scVatExemptBase * (fixedRate > 0 ? fixedRate / 100 : 0.20);
+        let scNetDue = scVatExemptBase - scDiscount;
+
+        vatableSales = regularVatable;
+        vatExemptSales = scVatExemptBase;
+        vatAmount = regularVat;
+        orderDiscountAmount = scDiscount;
+        finalTotal = regularShareGross + scNetDue;
+
+      } else if (rule === "FIXED_PERCENT") {
+        let rate = Math.min(100, Math.max(0, fixedRate));
+        orderDiscountAmount = (subtotal * rate) / 100;
+        let netCommercial = Math.max(0, subtotal - orderDiscountAmount);
+
+        vatableSales = netCommercial / 1.12;
+        vatAmount = netCommercial - vatableSales;
+        vatExemptSales = 0;
+        finalTotal = netCommercial;
+
+      } else if (rule === "CUSTOM_OPEN") {
+        let orderDiscountVal = parseFloat(document.getElementById("orderDiscountInput").value) || 0;
+        if (orderDiscountVal > 0) {
+          if (orderDiscType === 'PERCENT') {
+            let pct = Math.min(100, Math.max(0, orderDiscountVal));
+            orderDiscountAmount = (subtotal * pct) / 100;
+          } else {
+            orderDiscountAmount = Math.min(subtotal, Math.max(0, orderDiscountVal));
+          }
+        }
+        let netCommercial = Math.max(0, subtotal - orderDiscountAmount);
+        vatableSales = netCommercial / 1.12;
+        vatAmount = netCommercial - vatableSales;
+        vatExemptSales = 0;
+        finalTotal = netCommercial;
+
+      } else {
+        vatableSales = subtotal / 1.12;
+        vatAmount = subtotal - vatableSales;
+        vatExemptSales = 0;
+        finalTotal = subtotal;
+        orderDiscountAmount = 0;
+      }
+
+      document.getElementById("subtotalDisplay").textContent = "₱" + subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById("discountDisplay").textContent = "-₱" + orderDiscountAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById("vatableDisplay").textContent = "₱" + vatableSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById("vatExemptDisplay").textContent = "₱" + vatExemptSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById("vatDisplay").textContent = "₱" + vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById("grossTotalDisplay").textContent = "₱" + finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      return { 
+        subtotal: subtotal, 
+        totalDiscount: orderDiscountAmount, 
+        finalTotal: finalTotal,
+        vatableSales: vatableSales,
+        vatExemptSales: vatExemptSales,
+        vatAmount: vatAmount
+      };
+    }
+
+    function submitTicket() {
+      let brand = document.getElementById("headerBrand").value;
+      let shop = document.getElementById("headerShop").value;
+      let orNumber = document.getElementById("orNumberInput").value.trim();
+      let paymentMethod = document.getElementById("paymentMethodSelect").value;
+      let paymentRef = document.getElementById("paymentRefInput").value.trim();
+
+      if (!brand || !shop) {
+        alert("Please select both Brand and Shop before finalizing.");
+        return;
+      }
+      if (!orNumber) {
+        alert("Please enter the SI / OR Number.");
+        document.getElementById("orNumberInput").focus();
+        return;
+      }
+      if (document.getElementById("paymentRefInput").required && !paymentRef) {
+        alert("Please enter the Approval / Reference / Trace # for " + paymentMethod);
+        document.getElementById("paymentRefInput").focus();
+        return;
+      }
+      if (Object.keys(cart).length === 0) {
+        alert("Ticket is empty!");
+        return;
+      }
+
+      let discSelect = document.getElementById("discountSchemeSelect");
+      let selectedDiscOpt = discSelect.options[discSelect.selectedIndex];
+      let discountScheme = selectedDiscOpt ? selectedDiscOpt.value : "NONE";
+      let discountId = document.getElementById("discountIdInput").value.trim();
+
+      let totals = calculateTotals();
+      let cartItems = Object.keys(cart).map(code => {
+        let entry = cart[code];
+        return {
+          itemCode: entry.item.itemCode,
+          itemDesc: entry.item.itemDesc,
+          size: entry.item.size,
+          subBrand: entry.item.subBrand,
+          mainCat: entry.item.mainCat,
+          subCat: entry.item.subCat,
+          price: entry.item.price,
+          qty: entry.qty,
+          lineDiscount: computeLineDiscount(entry)
+        };
+      });
+
+      let payload = {
+        brand: brand,
+        shop: shop,
+        orNumber: orNumber,
+        paymentMethod: paymentMethod,
+        paymentRef: paymentRef,
+        customerName: document.getElementById("customerNameInput").value.trim(),
+        customerTin: document.getElementById("customerTinInput").value.trim(),
+        discountScheme: discountScheme,
+        discountId: discountId,
+        notes: document.getElementById("orderNotesInput").value.trim(),
+        subtotal: totals.subtotal,
+        totalDiscount: totals.totalDiscount,
+        finalTotal: totals.finalTotal,
+        vatableSales: totals.vatableSales,
+        vatExemptSales: totals.vatExemptSales,
+        vatAmount: totals.vatAmount,
+        cart: cartItems
+      };
+
+      let btn = document.getElementById("submitBtn");
+      let status = document.getElementById("statusMsg");
+      btn.disabled = true;
+      status.style.color = "#d97706";
+      status.textContent = "Saving Order...";
+
+      // Standard HTTP POST request to your backend API
+      fetch('/api/submitOrder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(msg => { throw new Error(msg); });
+        }
+        return response.json();
+      })
+      .then(res => {
+        btn.disabled = false;
+        status.textContent = "";
+
+        lastFinalizedOrder = { res: res, payload: payload };
+
+        document.getElementById("confirmedOrderId").textContent = res.orderId;
+        document.getElementById("confirmedShop").textContent = res.shop;
+        document.getElementById("confirmedOr").textContent = res.orNumber;
+        document.getElementById("confirmedPayment").textContent = res.paymentMethod + (payload.paymentRef ? " (" + payload.paymentRef + ")" : "");
+        document.getElementById("confirmedVatable").textContent = "₱" + res.vatableSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("confirmedVatExempt").textContent = "₱" + res.vatExemptSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("confirmedVat").textContent = "₱" + res.vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("confirmedTotal").textContent = "₱" + res.finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("successModal").style.display = "flex";
+
+        clearCart();
+        document.getElementById("orNumberInput").value = "";
+        document.getElementById("paymentRefInput").value = "";
+        document.getElementById("orderDiscountInput").value = "";
+        document.getElementById("discountIdInput").value = "";
+        document.getElementById("orderNotesInput").value = "";
+        document.getElementById("customerNameInput").value = "";
+        document.getElementById("customerTinInput").value = "";
+        document.getElementById("discountSchemeSelect").value = "NONE";
+        onDiscountSchemeChange();
+      })
+      .catch(err => {
+        alert("Submission error: " + err.message);
+        btn.disabled = false;
+        status.textContent = "";
+      });
+    }
+
+    // --- THERMAL PRINT GENERATOR (AUDIT vs KITCHEN) ---
+    function printThermalSlip(type) {
+      if (!lastFinalizedOrder) {
+        alert("No recent order data available to print.");
+        return;
+      }
+
+      const { res, payload } = lastFinalizedOrder;
+      const target = document.getElementById("printableReceipt");
+      const dateStr = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+
+      let itemsHtml = "";
+
+      if (type === 'KITCHEN') {
+        payload.cart.forEach(item => {
+          itemsHtml += `
+            <div style="margin: 6px 0; border-bottom: 1px dotted #ccc; padding-bottom: 4px;">
+              <div style="font-size: 13px; font-weight: 800;">[ ${item.qty}x ] ${item.itemDesc}</div>
+              <div style="font-size: 10px; color: #333; margin-top: 1px;">
+                Code: ${item.itemCode} ${item.size && item.size !== '-' ? '• Size: ' + item.size : ''}
+              </div>
+            </div>
+          `;
+        });
+
+        target.innerHTML = `
+          <div class="rcpt-header">
+            <div class="rcpt-brand">${payload.brand}</div>
+            <div class="rcpt-shop">${payload.shop}</div>
+            <div style="font-size: 12px; font-weight: 800; margin-top: 4px; border: 1px solid #000; padding: 2px;">
+              *** KITCHEN DISPATCH ORDER ***
+            </div>
+          </div>
+
+          <div class="rcpt-row"><span>Date/Time:</span><span>${dateStr}</span></div>
+          <div class="rcpt-row"><span>Order ID:</span><span><strong>${res.orderId}</strong></span></div>
+          <div class="rcpt-row"><span>SI / Ref #:</span><span><strong>${res.orNumber}</strong></span></div>
+
+          ${payload.notes ? `
+            <div style="margin: 6px 0; padding: 4px; border: 1px dashed #000; font-size: 11px;">
+              <strong>SPECIAL INSTRUCTIONS:</strong><br>${payload.notes}
+            </div>` : ''}
+
+          <div class="rcpt-divider"></div>
+          <div style="font-size: 11px; font-weight: 800; margin-bottom: 4px;">ITEMS TO PREPARE:</div>
+          ${itemsHtml}
+        `;
+
+      } else {
+        payload.cart.forEach(item => {
+          const lineGross = item.price * item.qty;
+          const lineNet = lineGross - item.lineDiscount;
+          itemsHtml += `
+            <div class="rcpt-row">
+              <span class="rcpt-item-name">${item.itemDesc}</span>
+              <span>₱${lineNet.toFixed(2)}</span>
+            </div>
+            <div class="rcpt-row rcpt-item-sub">
+              <span>${item.qty} x ₱${item.price.toFixed(2)}${item.lineDiscount > 0 ? ' (Disc: -₱' + item.lineDiscount.toFixed(2) + ')' : ''}</span>
+              <span>[${item.itemCode}]</span>
+            </div>
+          `;
+        });
+
+        target.innerHTML = `
+          <div class="rcpt-header">
+            <div class="rcpt-brand">${payload.brand}</div>
+            <div class="rcpt-shop">${payload.shop}</div>
+            <div style="font-size: 10px; margin-top: 4px;">BULK ORDER AUDIT SLIP</div>
+          </div>
+
+          <div class="rcpt-row"><span>Date:</span><span>${dateStr}</span></div>
+          <div class="rcpt-row"><span>Order ID:</span><span><strong>${res.orderId}</strong></span></div>
+          <div class="rcpt-row"><span>SI / Ref #:</span><span>${res.orNumber}</span></div>
+          <div class="rcpt-row"><span>Payment:</span><span>${payload.paymentMethod} ${payload.paymentRef ? '(' + payload.paymentRef + ')' : ''}</span></div>
+          
+          ${payload.customerName ? `<div class="rcpt-row"><span>Customer:</span><span>${payload.customerName}</span></div>` : ''}
+          ${payload.customerTin ? `<div class="rcpt-row"><span>TIN:</span><span>${payload.customerTin}</span></div>` : ''}
+          ${payload.discountId ? `<div class="rcpt-row"><span>Disc ID:</span><span>${payload.discountId} (${payload.discountScheme})</span></div>` : ''}
+          ${payload.notes ? `<div class="rcpt-row"><span>Notes:</span><span>${payload.notes}</span></div>` : ''}
+
+          <div class="rcpt-divider"></div>
+          ${itemsHtml}
+
+          <div class="rcpt-totals">
+            <div class="rcpt-row"><span>Gross Subtotal:</span><span>₱${payload.subtotal.toFixed(2)}</span></div>
+            <div class="rcpt-row"><span>Total Discounts:</span><span>-₱${payload.totalDiscount.toFixed(2)}</span></div>
+            <div class="rcpt-row"><span>VATable Sales:</span><span>₱${res.vatableSales.toFixed(2)}</span></div>
+            <div class="rcpt-row"><span>VAT-Exempt Sales:</span><span>₱${res.vatExemptSales.toFixed(2)}</span></div>
+            <div class="rcpt-row"><span>12% VAT:</span><span>₱${res.vatAmount.toFixed(2)}</span></div>
+            <div class="rcpt-grand-total">
+              <span>TOTAL AMOUNT DUE:</span>
+              <span>₱${res.finalTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div class="rcpt-footer">
+            <div>*** BULK ORDER RECORD SLIP ***</div>
+            <div>Attach to Merchant / Internal Audit File</div>
+          </div>
+        `;
+      }
+
+      window.print();
+    }
+
+    // --- Z-READ / DAILY SHIFT SUMMARY ---
+    function openZReadModal() {
+      let activeShop = document.getElementById("headerShop").value;
+      if (!activeShop) {
+        alert("Please select a Shop first.");
+        return;
+      }
+
+      document.getElementById("zReadModal").style.display = "flex";
+      document.getElementById("zReadContent").innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 20px;">Loading today\'s transactions...</div>';
+      document.getElementById("printZReadBtn").disabled = true;
+
+      // Standard HTTP GET request with URL query parameter
+      fetch('/api/getDailyShiftSummary?shop=' + encodeURIComponent(activeShop))
+        .then(response => {
+          if (!response.ok) throw new Error("Could not calculate shift summary.");
+          return response.json();
+        })
+        .then(res => {
+          currentShiftSummary = res;
+          document.getElementById("printZReadBtn").disabled = false;
+
+          let payHtml = "";
+          Object.keys(res.payments || {}).forEach(k => {
+            payHtml += `
+              <div class="calc-row" style="padding: 2px 0;">
+                <span>• ${k}:</span>
+                <strong>₱${res.payments[k].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+            `;
+          });
+
+          document.getElementById("zReadContent").innerHTML = `
+            <div style="font-size: 12px; color: #64748b; margin-bottom: 10px;">
+              <strong>Branch:</strong> ${res.shop}<br>
+              <strong>Date:</strong> ${res.date}
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+              <div class="calc-row"><span>Total Completed Orders:</span><strong>${res.orderCount}</strong></div>
+              <div class="calc-row"><span>Gross Sales:</span><strong>₱${res.grossSales.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+              <div class="calc-row"><span>Total Deductions/Discounts:</span><strong style="color: #ef4444;">-₱${res.totalDiscounts.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+              <div class="calc-row final" style="font-size: 15px; margin-top: 6px; padding-top: 6px;">
+                <span>Net Total Collections:</span>
+                <span style="color: #059669;">₱${res.netSales.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 4px;">Tax Summary</div>
+            <div style="font-size: 12px; margin-bottom: 10px;">
+              <div class="calc-row"><span>VATable Sales:</span><span>₱${res.vatable.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
+              <div class="calc-row"><span>VAT-Exempt Sales:</span><span>₱${res.vatExempt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
+              <div class="calc-row"><span>12% VAT Collected:</span><span>₱${res.vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
+            </div>
+
+            <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 4px;">Collections By Payment Method</div>
+            <div style="font-size: 12px;">
+              ${payHtml || '<div>No payments recorded today.</div>'}
+            </div>
+          `;
+        })
+        .catch(err => {
+          document.getElementById("zReadContent").innerHTML = `<div style="color: #dc2626; text-align: center; padding: 20px;">Error: ${err.message}</div>`;
+        });
+    }
+
+    function closeZReadModal() {
+      document.getElementById("zReadModal").style.display = "none";
+    }
+
+    function printZReadSlip() {
+      if (!currentShiftSummary) return;
+
+      const s = currentShiftSummary;
+      const target = document.getElementById("printableReceipt");
+      const timeStr = new Date().toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" });
+
+      let payLines = "";
+      Object.keys(s.payments || {}).forEach(k => {
+        payLines += `
+          <div class="rcpt-row">
+            <span>${k}:</span>
+            <span>₱${s.payments[k].toFixed(2)}</span>
+          </div>
+        `;
+      });
+
+      let txLines = "";
+      (s.transactions || []).forEach(t => {
+        txLines += `
+          <div class="rcpt-row" style="font-size: 10px;">
+            <span>${t.siNumber} (${t.paymentMethod})</span>
+            <span>₱${t.finalTotal.toFixed(2)}</span>
+          </div>
+        `;
+      });
+
+      target.innerHTML = `
+        <div class="rcpt-header">
+          <div class="rcpt-brand">DAILY SHIFT SUMMARY (Z-READ)</div>
+          <div class="rcpt-shop">${s.shop}</div>
+          <div style="font-size: 10px; margin-top: 2px;">Date: ${s.date} • Printed: ${timeStr}</div>
+        </div>
+
+        <div class="rcpt-row"><span>Total Orders:</span><span><strong>${s.orderCount}</strong></span></div>
+        <div class="rcpt-row"><span>Gross Sales:</span><span>₱${s.grossSales.toFixed(2)}</span></div>
+        <div class="rcpt-row"><span>Total Discounts:</span><span>-₱${s.totalDiscounts.toFixed(2)}</span></div>
+        <div class="rcpt-grand-total">
+          <span>NET AMOUNT DUE:</span>
+          <span>₱${s.netSales.toFixed(2)}</span>
+        </div>
+
+        <div class="rcpt-divider"></div>
+        <div style="font-size: 10px; font-weight: 800; margin-bottom: 2px;">TAX BREAKDOWN:</div>
+        <div class="rcpt-row"><span>VATable Sales:</span><span>₱${s.vatable.toFixed(2)}</span></div>
+        <div class="rcpt-row"><span>VAT-Exempt Sales:</span><span>₱${s.vatExempt.toFixed(2)}</span></div>
+        <div class="rcpt-row"><span>12% VAT:</span><span>₱${s.vatAmount.toFixed(2)}</span></div>
+
+        <div class="rcpt-divider"></div>
+        <div style="font-size: 10px; font-weight: 800; margin-bottom: 2px;">PAYMENT SUMMARY:</div>
+        ${payLines || '<div class="rcpt-row"><span>None</span><span>₱0.00</span></div>'}
+
+        <div class="rcpt-divider"></div>
+        <div style="font-size: 10px; font-weight: 800; margin-bottom: 2px;">TRANSACTION LOG:</div>
+        ${txLines || '<div class="rcpt-row"><span>No orders today</span></div>'}
+
+        <div class="rcpt-footer" style="margin-top: 14px;">
+          <div>Shift Supervisor: ____________________</div>
+          <div style="margin-top: 4px;">Attach to Cash Turnover / Audit Remittance</div>
+        </div>
+      `;
+
+      window.print();
+    }
+
+    function closeSuccessModal() {
+      document.getElementById("successModal").style.display = "none";
+    }
+
+    function openVoidModal() {
+      let currentShop = document.getElementById("headerShop").value;
+      if (!currentShop) {
+        alert("Please select your Brand and Shop at the top before opening Void.");
+        return;
+      }
+      document.getElementById("voidModal").style.display = "flex";
+      document.getElementById("voidStatusMsg").textContent = "";
+      document.getElementById("voidIdentifierInput").value = "";
+      document.getElementById("voidReasonInput").value = "";
+    }
+
+    function closeVoidModal() {
+      document.getElementById("voidModal").style.display = "none";
+    }
+
+    function processVoid() {
+      let id = document.getElementById("voidIdentifierInput").value.trim();
+      let reason = document.getElementById("voidReasonInput").value.trim();
+      let activeShop = document.getElementById("headerShop").value;
+      let btn = document.getElementById("confirmVoidBtn");
+      let status = document.getElementById("voidStatusMsg");
+
+      if (!id) {
+        alert("Please enter the Order ID or SI Number.");
+        return;
+      }
+      if (!reason) {
+        alert("Please provide the reason for voiding.");
+        return;
+      }
+
+      if (!confirm("Confirm VOID for order: " + id + " under shop: " + activeShop + "?")) {
+        return;
+      }
+
+      btn.disabled = true;
+      status.style.color = "#d97706";
+      status.textContent = "Validating same-day & shop constraints...";
+
+      // Standard HTTP POST request to your backend void API
+      fetch('/api/voidOrder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: id,
+          reason: reason,
+          shop: activeShop
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(msg => { throw new Error(msg); });
+        }
+        return response.text();
+      })
+      .then(res => {
+        status.style.color = "#059669";
+        status.textContent = res;
+        setTimeout(function() {
+          btn.disabled = false;
+          closeVoidModal();
+        }, 2500);
+      })
+      .catch(err => {
+        btn.disabled = false;
+        status.style.color = "#dc2626";
+        status.textContent = err.message;
+      });
+    }
+  </script>
+</body>
+</html>
