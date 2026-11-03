@@ -755,7 +755,7 @@
   <div class="top-bar">
     <div class="brand-title">
       <h2>TMG <span>POS Register</span></h2>
-      <span class="user-tag" id="userEmailTag">Loading user...</span>
+      <span class="user-tag" id="userEmailTag">Loading catalog...</span>
       <button type="button" class="btn-void-toggle" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; border-color: rgba(56, 189, 248, 0.35);" onclick="openZReadModal()">📊 Shift Summary</button>
       <button type="button" class="btn-void-toggle" onclick="openVoidModal()">✕ Void Order</button>
     </div>
@@ -1026,6 +1026,9 @@
   <div id="printableReceipt"></div>
 
   <script>
+    // --- LIVE GOOGLE APPS SCRIPT WEB APP ENDPOINT ---
+    const API_URL = "https://script.google.com/a/macros/momentgroup.ph/s/AKfycbznKTUfGM1jWWDz0pHgZ7GDbTrnz8eTZf6Hv-hwyiItZ1QIJ_ovuTdkG19aiuR_6rGd/exec";
+
     // --- IT MASTER PASSWORD FOR STORE LOCK ---
     const IT_MASTER_PIN = "TMG2026";
     let isStoreLocked = true;
@@ -1043,20 +1046,28 @@
     let lastFinalizedOrder = null;
     let currentShiftSummary = null;
 
+    // Helper to send cross-origin requests to Apps Script
+    function callBackend(action, extraData) {
+      const payload = Object.assign({ action: action }, extraData || {});
+      return fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      }).then(res => {
+        if (!res.ok) throw new Error("Server responded with HTTP " + res.status);
+        return res.json();
+      });
+    }
+
     document.addEventListener("DOMContentLoaded", function() {
-      // Decoupled standard HTTP fetch replacing google.script.run
-      fetch('/api/getPosData')
-        .then(response => {
-          if (!response.ok) throw new Error("HTTP error " + response.status + ": Could not initialize POS catalog.");
-          return response.json();
-        })
+      callBackend("getPosData")
         .then(data => {
           fullCatalog = data.catalog || [];
           shopMap = data.shopMap || {};
           thresholdMap = data.thresholdMap || {};
           paymentMethods = data.paymentMethods || [];
           discountList = data.discountList || [];
-          document.getElementById("userEmailTag").textContent = data.userEmail || "Store User";
+          document.getElementById("userEmailTag").textContent = data.userEmail || "Workspace User";
 
           // 1. Populate Brand Dropdown
           let brandSelect = document.getElementById("headerBrand");
@@ -1114,7 +1125,7 @@
         })
         .catch(err => {
           document.getElementById("userEmailTag").textContent = "Offline / Error";
-          alert("POS API Connection Error: " + err.message);
+          alert("POS API Connection Error: " + err.message + "\n\nTip: Ensure that the script is deployed with 'Who has access' set to 'Anyone'.");
         });
     });
 
@@ -1730,50 +1741,39 @@
       status.style.color = "#d97706";
       status.textContent = "Saving Order...";
 
-      // Standard HTTP POST request to your backend API
-      fetch('/api/submitOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(response => {
-        if (!response.ok) {
-          return response.text().then(msg => { throw new Error(msg); });
-        }
-        return response.json();
-      })
-      .then(res => {
-        btn.disabled = false;
-        status.textContent = "";
+      callBackend("submitOrder", { payload: payload })
+        .then(res => {
+          btn.disabled = false;
+          status.textContent = "";
 
-        lastFinalizedOrder = { res: res, payload: payload };
+          lastFinalizedOrder = { res: res, payload: payload };
 
-        document.getElementById("confirmedOrderId").textContent = res.orderId;
-        document.getElementById("confirmedShop").textContent = res.shop;
-        document.getElementById("confirmedOr").textContent = res.orNumber;
-        document.getElementById("confirmedPayment").textContent = res.paymentMethod + (payload.paymentRef ? " (" + payload.paymentRef + ")" : "");
-        document.getElementById("confirmedVatable").textContent = "₱" + res.vatableSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("confirmedVatExempt").textContent = "₱" + res.vatExemptSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("confirmedVat").textContent = "₱" + res.vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("confirmedTotal").textContent = "₱" + res.finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("successModal").style.display = "flex";
+          document.getElementById("confirmedOrderId").textContent = res.orderId;
+          document.getElementById("confirmedShop").textContent = res.shop;
+          document.getElementById("confirmedOr").textContent = res.orNumber;
+          document.getElementById("confirmedPayment").textContent = res.paymentMethod + (payload.paymentRef ? " (" + payload.paymentRef + ")" : "");
+          document.getElementById("confirmedVatable").textContent = "₱" + res.vatableSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          document.getElementById("confirmedVatExempt").textContent = "₱" + res.vatExemptSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          document.getElementById("confirmedVat").textContent = "₱" + res.vatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          document.getElementById("confirmedTotal").textContent = "₱" + res.finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          document.getElementById("successModal").style.display = "flex";
 
-        clearCart();
-        document.getElementById("orNumberInput").value = "";
-        document.getElementById("paymentRefInput").value = "";
-        document.getElementById("orderDiscountInput").value = "";
-        document.getElementById("discountIdInput").value = "";
-        document.getElementById("orderNotesInput").value = "";
-        document.getElementById("customerNameInput").value = "";
-        document.getElementById("customerTinInput").value = "";
-        document.getElementById("discountSchemeSelect").value = "NONE";
-        onDiscountSchemeChange();
-      })
-      .catch(err => {
-        alert("Submission error: " + err.message);
-        btn.disabled = false;
-        status.textContent = "";
-      });
+          clearCart();
+          document.getElementById("orNumberInput").value = "";
+          document.getElementById("paymentRefInput").value = "";
+          document.getElementById("orderDiscountInput").value = "";
+          document.getElementById("discountIdInput").value = "";
+          document.getElementById("orderNotesInput").value = "";
+          document.getElementById("customerNameInput").value = "";
+          document.getElementById("customerTinInput").value = "";
+          document.getElementById("discountSchemeSelect").value = "NONE";
+          onDiscountSchemeChange();
+        })
+        .catch(err => {
+          alert("Submission error: " + err.message);
+          btn.disabled = false;
+          status.textContent = "";
+        });
     }
 
     // --- THERMAL PRINT GENERATOR (AUDIT vs KITCHEN) ---
@@ -1894,12 +1894,7 @@
       document.getElementById("zReadContent").innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 20px;">Loading today\'s transactions...</div>';
       document.getElementById("printZReadBtn").disabled = true;
 
-      // Standard HTTP GET request with URL query parameter
-      fetch('/api/getDailyShiftSummary?shop=' + encodeURIComponent(activeShop))
-        .then(response => {
-          if (!response.ok) throw new Error("Could not calculate shift summary.");
-          return response.json();
-        })
+      callBackend("getDailyShiftSummary", { shop: activeShop })
         .then(res => {
           currentShiftSummary = res;
           document.getElementById("printZReadBtn").disabled = false;
@@ -2061,21 +2056,10 @@
       status.style.color = "#d97706";
       status.textContent = "Validating same-day & shop constraints...";
 
-      // Standard HTTP POST request to your backend void API
-      fetch('/api/voidOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: id,
-          reason: reason,
-          shop: activeShop
-        })
-      })
-      .then(response => {
-        if (!response.ok) {
-          return response.text().then(msg => { throw new Error(msg); });
-        }
-        return response.text();
+      callBackend("voidOrder", {
+        identifier: id,
+        reason: reason,
+        shop: activeShop
       })
       .then(res => {
         status.style.color = "#059669";
